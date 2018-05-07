@@ -64,6 +64,10 @@ type Article struct {
 	RawContent string
 }
 
+func getGoQueryDocument(pageSource []byte) (*goquery.Document, error) {
+	return goquery.NewDocumentFromReader(bytes.NewReader(pageSource))
+}
+
 func fetchURL(url *nurl.URL, timeout time.Duration) (*goquery.Document, error) {
 	// Fetch page from URL
 	client := &http.Client{Timeout: timeout}
@@ -1130,8 +1134,17 @@ func estimateReadTime(articleContent *goquery.Selection) (int, int) {
 	return int(minReadTime), int(maxReadTime)
 }
 
-// Parse an URL to readability format
-func Parse(url string, timeout time.Duration) (Article, error) {
+// ParseFromPageSource parses a page source with an URL to readability format
+func ParseFromPageSource(url string, pageSource []byte, timeout time.Duration) (Article, error) {
+	return parse(url, pageSource, 1, timeout)
+}
+
+// ParseFromURL parses an URL to readability format
+func ParseFromURL(url string, timeout time.Duration) (Article, error) {
+	return parse(url, []byte{}, 0, timeout)
+}
+
+func parse(url string, pageSource []byte, sourceType int, timeout time.Duration) (Article, error) {
 	// Make sure url is valid
 	parsedURL, err := nurl.ParseRequestURI(url)
 	if err != nil {
@@ -1139,9 +1152,17 @@ func Parse(url string, timeout time.Duration) (Article, error) {
 	}
 
 	// Fetch page
-	doc, err := fetchURL(parsedURL, timeout)
-	if err != nil {
-		return Article{}, err
+	var doc *goquery.Document
+	if sourceType == 0 {
+		doc, err = fetchURL(parsedURL, timeout)
+		if err != nil {
+			return Article{}, err
+		}
+	} else {
+		doc, err = getGoQueryDocument(pageSource)
+		if err != nil {
+			return Article{}, err
+		}
 	}
 
 	// Prepare document
